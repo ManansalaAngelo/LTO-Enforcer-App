@@ -83,14 +83,15 @@ class ReportModel {
       'createdById': createdById,
       'evidencePhoto': evidencePhoto,
       'draftId': draftId,
-      'trackingNumber': createAlphanumericTrackingNumber(),
-      'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : Timestamp.fromDate(DateTime.now()),
+      'trackingNumber': trackingNumber ?? createAlphanumericTrackingNumber(), // ✅ fixed
+      'createdAt': createdAt != null
+          ? Timestamp.fromDate(createdAt!)
+          : Timestamp.fromDate(DateTime.now()),
       'status': status,
       'paymentStatus': paymentStatus,
     };
   }
 
-  /// Special JSON method for drafts that converts Timestamp to string for SharedPreferences
   Map<String, dynamic> toDraftJson() {
     final user = FirebaseAuth.instance.currentUser;
     createdById = user?.uid;
@@ -107,8 +108,9 @@ class ReportModel {
       'createdById': createdById,
       'evidencePhoto': evidencePhoto,
       'draftId': draftId,
-      'trackingNumber': createAlphanumericTrackingNumber(),
-      'createdAt': createdAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
+      'trackingNumber': trackingNumber ?? createAlphanumericTrackingNumber(), // ✅ fixed
+      'createdAt':
+          createdAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
       'status': status,
       'paymentStatus': paymentStatus,
     };

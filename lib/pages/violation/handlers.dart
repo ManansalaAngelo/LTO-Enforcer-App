@@ -3,37 +3,35 @@ import 'package:enforcer_auto_fine/enums/collections.dart';
 import 'package:enforcer_auto_fine/pages/violation/models/report_model.dart';
 import 'package:enforcer_auto_fine/pages/violation/models/violation_model.dart';
 import 'package:enforcer_auto_fine/pages/violation/models/violations_config.dart';
+import 'package:enforcer_auto_fine/services/textbee_service.dart';
+import 'package:enforcer_auto_fine/utils/tracking_no_generator.dart';
 
-/// Check for duplicate violations before saving a new report.
+/// ✅ Check for duplicate violations before saving a new report.
 Future<bool> _checkDuplicateViolation(ReportModel data) async {
   final db = FirebaseFirestore.instance;
   final plateNumber = data.plateNumber;
   final newViolations = data.violations;
 
-  // Get today's date range for client-side comparison
+  // Get today's date range for comparison
   final now = DateTime.now();
   final startOfDay = DateTime(now.year, now.month, now.day);
   final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
 
-  // 1. Fetch ALL reports for the plate number, regardless of date.
-  // This avoids the need for a composite index.
+  // Fetch all reports for the same plate number
   final querySnapshot = await db
       .collection(Collections.reports.name)
       .where('plateNumber', isEqualTo: plateNumber)
       .get();
 
-  // 2. Filter the results here in the app to find reports from today.
+  // Filter reports created today
   final todaysDocs = querySnapshot.docs.where((doc) {
     final timestamp = doc.data()['createdAt'] as Timestamp?;
     if (timestamp == null) return false;
     final docDate = timestamp.toDate();
-    // Check if the document's date is within today's range
     return docDate.isAfter(startOfDay) && docDate.isBefore(endOfDay);
   }).toList();
 
-
   if (todaysDocs.isNotEmpty) {
-    // 3. If there are reports from today, check for matching violation names.
     for (final doc in todaysDocs) {
       final existingReport = ReportModel.fromJson(doc.data());
       for (final existingViolation in existingReport.violations) {
@@ -49,20 +47,16 @@ Future<bool> _checkDuplicateViolation(ReportModel data) async {
   return false; // No duplicate found
 }
 
-
-/// Calculate repetition counts for violations based on previous reports for the same plate number
+/// ✅ Calculate violation repetition counts and update prices accordingly.
 Future<List<ViolationModel>> _calculateViolationRepetitions(
     String plateNumber, List<ViolationModel> newViolations) async {
   try {
     final db = FirebaseFirestore.instance;
-
-    // Get all previous reports for this plate number
     final previousReportsSnapshot = await db
         .collection(Collections.reports.name)
         .where('plateNumber', isEqualTo: plateNumber)
         .get();
 
-    // Count existing violations for this plate number
     final Map<String, int> violationCounts = {};
 
     for (var doc in previousReportsSnapshot.docs) {
@@ -70,12 +64,10 @@ Future<List<ViolationModel>> _calculateViolationRepetitions(
       final List<dynamic>? violationsData =
           data['violations'] as List<dynamic>?;
 
-      // Skip documents that don't have violations or have null violations
       if (violationsData == null) continue;
 
       for (var violationData in violationsData) {
         if (violationData is Map<String, dynamic>) {
-          // New format with ViolationModel
           final violationName = violationData['violationName'] as String?;
           if (violationName != null) {
             violationCounts.update(
@@ -85,7 +77,6 @@ Future<List<ViolationModel>> _calculateViolationRepetitions(
             );
           }
         } else if (violationData is String) {
-          // Legacy format - just strings
           violationCounts.update(
             violationData,
             (count) => count + 1,
@@ -95,14 +86,12 @@ Future<List<ViolationModel>> _calculateViolationRepetitions(
       }
     }
 
-    // Update repetition counts for new violations
     final List<ViolationModel> updatedViolations =
         newViolations.map((violation) {
       final existingCount = violationCounts[violation.violationName] ?? 0;
       return violation.copyWith(repetition: existingCount + 1);
     }).toList();
 
-    // Update prices based on repetition for violations that have repetition-based pricing
     final List<ViolationModel> finalViolations =
         updatedViolations.map((violation) {
       final violationDef = ViolationsConfig.definitions.values.firstWhere(
@@ -116,7 +105,6 @@ Future<List<ViolationModel>> _calculateViolationRepetitions(
         ),
       );
 
-      // Only update price for fixed-price violations if the current price matches default
       if (violationDef.type == ViolationType.fixed &&
           violationDef.prices != null) {
         final newPrice = violationDef.getPriceForOffense(violation.repetition);
@@ -129,21 +117,22 @@ Future<List<ViolationModel>> _calculateViolationRepetitions(
     return finalViolations;
   } catch (e) {
     print('Error calculating violation repetitions: $e');
-    // Return original violations if calculation fails
     return newViolations;
   }
 }
 
+/// ✅ Handles report submission, Firestore saving, and SMS notification.
 Future<String?> handleSave(ReportModel data) async {
   try {
-    // First, check for duplicates
+    // Check for duplicates
     final isDuplicate = await _checkDuplicateViolation(data);
     if (isDuplicate) {
-      // If a duplicate is found, throw an exception to be caught by the UI
-      throw Exception('This violation already recorded this day.');
+      throw Exception('This violation is already recorded today.');
     }
 
-    // Get an instance of Firestore
+    // Generate a unique tracking number
+    final trackingNumber = createAlphanumericTrackingNumber();
+
     final db = FirebaseFirestore.instance;
 
     // Calculate repetition counts for violations
@@ -152,7 +141,7 @@ Future<String?> handleSave(ReportModel data) async {
       data.violations,
     );
 
-    // Create updated report with correct repetition counts
+    // Create updated report data
     final updatedData = ReportModel(
       fullname: data.fullname,
       address: data.address,
@@ -162,26 +151,47 @@ Future<String?> handleSave(ReportModel data) async {
       plateNumber: data.plateNumber,
       platePhoto: data.platePhoto,
       evidencePhoto: data.evidencePhoto,
-      trackingNumber: data.trackingNumber,
+      trackingNumber: trackingNumber,
       createdById: data.createdById,
       violations: updatedViolations,
-      createdAt: data.createdAt,
+      createdAt: data.createdAt ?? DateTime.now(),
       draftId: data.draftId,
     );
 
-    // Convert your ReportModel to a Map
-    final reportData = updatedData.toJson();
+    // Save the report to Firestore
+    final docRef =
+        await db.collection(Collections.reports.name).add(updatedData.toJson());
 
-    // Add a new document with a generated ID to the 'reports' collection
-    await db.collection(Collections.reports.name).add(reportData);
+    // Make sure the tracking number exists in Firestore (if not, add it)
+    await docRef.update({'trackingNumber': trackingNumber});
 
-    print('Report successfully saved to Firestore!');
-    var tNumber = ReportModel.fromJson(reportData).trackingNumber;
+    print('✅ Report successfully saved to Firestore with tracking number: $trackingNumber');
 
-    return tNumber;
+    // Fetch saved document to confirm
+    final savedDoc = await docRef.get();
+    final savedTrackingNumber =
+        savedDoc.data()?['trackingNumber'] ?? trackingNumber;
+
+    // ✅ Include fullname in SMS message
+    final fullNameText = (updatedData.fullname.isNotEmpty)
+        ? 'Hi ${updatedData.fullname}. '
+        : '';
+
+    final smsMessage =
+        '${fullNameText}\nAutoFine: You have a violation with tracking number $savedTrackingNumber. '
+        'Please check the AutoFine app for details.';
+
+    // Optional small delay before sending SMS
+    await Future.delayed(const Duration(seconds: 2));
+
+    // Send SMS
+    await TextBeeService.sendSms(updatedData.phoneNumber, smsMessage);
+
+    print('📱 SMS sent successfully with tracking number: $savedTrackingNumber');
+
+    return savedTrackingNumber;
   } catch (e) {
-    print('Error saving report to Firestore: $e');
-    // Rethrow the exception so the UI can display the specific error message
+    print('❌ Error saving report to Firestore or sending SMS: $e');
     rethrow;
   }
 }

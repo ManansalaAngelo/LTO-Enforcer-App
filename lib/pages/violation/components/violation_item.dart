@@ -1,0 +1,105 @@
+// violation_item.dart
+import 'package:enforcer_auto_fine/pages/violation/bloc/violation_bloc.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+class ViolationItem extends StatelessWidget {
+  final String label;
+  final String item;
+
+  const ViolationItem({super.key, required this.label, required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<ViolationBloc, ViolationState>(
+      builder: (context, state) {
+        if (state is! HomeLoaded) {
+          return const SizedBox.shrink();
+        } else {
+          final violations = state.violations;
+          // Handle both old bool values and new dynamic values for backward compatibility
+          final violationValue = violations[item];
+          bool value;
+          
+          if (violationValue is bool) {
+            value = violationValue;
+          } else if (violationValue is Map<String, dynamic>) {
+            value = true; // If it's a map, it means the violation is selected
+          } else {
+            value = false; // Default to false for any other type
+          }
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: GestureDetector(
+              onTap: () {
+                context.read<ViolationBloc>().add(
+                  UpdateViolationEvent(
+                    key: item,
+                    value: !value ? true : false, // Toggle between true/false for simple violations
+                  ),
+                );
+                HapticFeedback.lightImpact();
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: value
+                      ? const Color(0xFF007AFF).withOpacity(0.15)
+                      : Colors.white.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: value
+                        ? const Color(0xFF007AFF)
+                        : Colors.white.withOpacity(0.12),
+                    width: value ? 2 : 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: value
+                            ? const Color(0xFF007AFF)
+                            : Colors.transparent,
+                        border: Border.all(
+                          color: value
+                              ? const Color(0xFF007AFF)
+                              : Colors.white.withOpacity(0.5),
+                          width: 2,
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: value
+                          ? const Icon(
+                              Icons.check,
+                              color: Colors.white,
+                              size: 16,
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+      },
+    );
+  }
+}

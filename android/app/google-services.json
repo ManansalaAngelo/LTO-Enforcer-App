@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "437938064027",
+    "project_id": "autofine-918aa",
+    "storage_bucket": "autofine-918aa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:437938064027:android:9edbc7b5ec3462c39d143e",
+        "android_client_info": {
+          "package_name": "com.example.enforcer_auto_fine"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBRPseqe8vm1DCVxLN1lPoAoeDtThHr5xE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

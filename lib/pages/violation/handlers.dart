@@ -122,7 +122,8 @@ Future<List<ViolationModel>> _calculateViolationRepetitions(
 }
 
 /// ✅ Handles report submission, Firestore saving, and SMS notification.
-Future<String?> handleSave(ReportModel data) async {
+// ✅ CHANGED: Return type is now a Map to include trackingNumber and dueDate
+Future<Map<String, dynamic>?> handleSave(ReportModel data) async {
   try {
     // Check for duplicates
     final isDuplicate = await _checkDuplicateViolation(data);
@@ -134,6 +135,10 @@ Future<String?> handleSave(ReportModel data) async {
     final trackingNumber = createAlphanumericTrackingNumber();
 
     final db = FirebaseFirestore.instance;
+
+    // ✅ ADDED: Calculate creation time and due date
+    final creationTime = data.createdAt ?? DateTime.now();
+    final dueDate = creationTime.add(const Duration(days: 15));
 
     // Calculate repetition counts for violations
     final updatedViolations = await _calculateViolationRepetitions(
@@ -154,7 +159,8 @@ Future<String?> handleSave(ReportModel data) async {
       trackingNumber: trackingNumber,
       createdById: data.createdById,
       violations: updatedViolations,
-      createdAt: data.createdAt ?? DateTime.now(),
+      createdAt: creationTime, // ✅ CHANGED: Use creationTime variable
+      dueDate: dueDate, // ✅ ADDED: Pass the calculated due date
       draftId: data.draftId,
     );
 
@@ -189,7 +195,11 @@ Future<String?> handleSave(ReportModel data) async {
 
     print('📱 SMS sent successfully with tracking number: $savedTrackingNumber');
 
-    return savedTrackingNumber;
+    // ✅ CHANGED: Return Map with tracking number and due date
+    return {
+      'trackingNumber': savedTrackingNumber,
+      'dueDate': dueDate,
+    };
   } catch (e) {
     print('❌ Error saving report to Firestore or sending SMS: $e');
     rethrow;

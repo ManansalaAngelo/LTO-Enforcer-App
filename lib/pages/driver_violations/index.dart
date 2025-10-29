@@ -1,7 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:enforcer_auto_fine/utils/date_formatter.dart';
+// import 'package:enforcer_auto_fine/utils/date_formatter.dart'; // Using intl
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart'; // Import for date formatting
 import '../../pages/appeal/models/appeal_model.dart';
 import '../../shared/app_theme/colors.dart';
 import '../../shared/app_theme/fonts.dart';
@@ -100,6 +101,10 @@ class _ViolationDetailsSheetState extends State<_ViolationDetailsSheet> {
   }
 
   Widget _buildViolationDetails(ReportModel violation) {
+    // Date formatters for consistent and readable dates
+    final DateFormat readableDateFormat = DateFormat('MMMM d, yyyy');
+    final DateFormat timeFormat = DateFormat('hh:mm a');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -184,8 +189,20 @@ class _ViolationDetailsSheetState extends State<_ViolationDetailsSheet> {
         _buildDetailRow('Plate Number', violation.plateNumber),
         _buildDetailRow(
           'Date & Time',
-          DateFormatter.format(violation.createdAt!),
+          violation.createdAt != null
+             ? '${readableDateFormat.format(violation.createdAt!)} at ${timeFormat.format(violation.createdAt!)}'
+             : '--',
         ),
+        
+        // Display Due Date if it exists
+        if (violation.dueDate != null)
+          _buildDetailRow(
+            'Payment Due Date',
+            readableDateFormat.format(violation.dueDate!),
+            valueColor: Colors.red, // Highlight in red
+            isBold: true,           // Make it bold
+          ),
+
         const SizedBox(height: 16),
         Text(
           'Violations',
@@ -287,7 +304,7 @@ class _ViolationDetailsSheetState extends State<_ViolationDetailsSheet> {
     }
 
     if (_appeal == null) {
-      return const SizedBox.shrink(); // Or a message saying "No appeal found"
+      return const SizedBox.shrink(); 
     }
 
     return Column(
@@ -364,8 +381,8 @@ class _ViolationDetailsSheetState extends State<_ViolationDetailsSheet> {
     );
   }
 
-    // Helper methods from the original DriverViolationsPage
-  Widget _buildDetailRow(String label, String value) {
+  // Helper method to accept optional styling
+  Widget _buildDetailRow(String label, String value, {Color? valueColor, bool isBold = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -386,8 +403,8 @@ class _ViolationDetailsSheetState extends State<_ViolationDetailsSheet> {
               value,
               style: TextStyle(
                 fontSize: FontSizes().body,
-                color: Colors.white,
-                fontWeight: FontWeight.w500,
+                color: valueColor ?? Colors.white, // Use provided color or default
+                fontWeight: isBold ? FontWeight.bold : FontWeight.w500, // Apply bold
               ),
             ),
           ),
@@ -396,6 +413,7 @@ class _ViolationDetailsSheetState extends State<_ViolationDetailsSheet> {
     );
   }
 
+  // Using the new comprehensive helper functions
   Color _getViolationColor(String violationType) {
     switch (violationType.toLowerCase()) {
       case 'speeding':
@@ -408,12 +426,29 @@ class _ViolationDetailsSheetState extends State<_ViolationDetailsSheet> {
         return Colors.purple;
       case 'reckless driving':
         return Colors.deepOrange;
-      case 'no license':
-        return Colors.red;
-      case 'expired registration':
-        return Colors.orange;
+      // More specific cases based on violation names in violation_config.dart
+      case 'driving without valid license':
+      case 'driving under influence':
+         return Colors.red.shade700;
+      case 'driving without carrying license':
+      case 'unregistered vehicle':
+      case 'number coding violation (mmda)':
+        return Colors.orange.shade700;
+      case 'disregarding traffic signs/ red light':
+      case 'illegal parking':
+      case 'obstruction (crossing/driveway)':
+        return Colors.amber.shade700;
+      case 'no seatbelt':
+      case 'using phone while driving':
+        return Colors.blue.shade700;
+      case 'overloading (puvs)':
+      case 'operating without franchise (puvs)':
+      case 'smoke belching / emission':
+         return Colors.grey.shade600;
+      case 'other':
+        return Colors.teal;
       default:
-        return Colors.blue;
+        return Colors.blueGrey; // Fallback color
     }
   }
 
@@ -422,19 +457,41 @@ class _ViolationDetailsSheetState extends State<_ViolationDetailsSheet> {
       case 'speeding':
         return Icons.speed;
       case 'parking violation':
+      case 'illegal parking':
         return Icons.local_parking;
       case 'traffic light violation':
+      case 'disregarding traffic signs/ red light':
         return Icons.traffic;
       case 'no helmet':
-        return Icons.sports_motorsports;
+        return Icons.motorcycle; 
       case 'reckless driving':
-        return Icons.warning;
-      case 'no license':
-        return Icons.badge;
-      case 'expired registration':
-        return Icons.assignment_late;
+        return Icons.warning_amber_rounded; 
+      // More specific cases
+      case 'driving without valid license':
+      case 'driving without carrying license':
+        return Icons.no_accounts;
+      case 'unregistered vehicle':
+         return Icons.car_crash_outlined; 
+      case 'number coding violation (mmda)':
+         return Icons.event_busy;
+      case 'no seatbelt':
+         return Icons.airline_seat_recline_normal;
+      case 'driving under influence':
+         return Icons.no_drinks;
+      case 'overloading (puvs)':
+         return Icons.groups;
+      case 'operating without franchise (puvs)':
+         return Icons.gavel; 
+      case 'using phone while driving':
+         return Icons.phone_android;
+      case 'obstruction (crossing/driveway)':
+         return Icons.block;
+      case 'smoke belching / emission':
+         return Icons.smoke_free; 
+      case 'other':
+        return Icons.help_outline;
       default:
-        return Icons.report_problem;
+        return Icons.report_problem; 
     }
   }
   
@@ -467,7 +524,12 @@ class _ViolationDetailsSheetState extends State<_ViolationDetailsSheet> {
         return '${number}th Offense';
     }
   }
-}
+} // End of _ViolationDetailsSheetState
+
+
+// =======================================================================
+// ✅ DRIVER VIOLATIONS PAGE STATE
+// =======================================================================
 
 class DriverViolationsPage extends StatefulWidget {
   final String plateNumber;
@@ -510,7 +572,7 @@ class _DriverViolationsPageState extends State<DriverViolationsPage> {
   }
 
   Future<void> _loadViolations() async {
-    if (_isLoading) return;
+    if (_isLoading && !_isInitialLoad) return; 
 
     setState(() {
       _isLoading = true;
@@ -540,6 +602,7 @@ class _DriverViolationsPageState extends State<DriverViolationsPage> {
         });
       } else {
         setState(() {
+          _violations.clear(); 
           _hasMoreData = false;
         });
       }
@@ -612,11 +675,11 @@ class _DriverViolationsPageState extends State<DriverViolationsPage> {
 
   Future<void> _refreshViolations() async {
     setState(() {
-      _violations.clear();
       _lastDocument = null;
       _hasMoreData = true;
+      _isInitialLoad = true; 
     });
-    await _loadViolations();
+    await _loadViolations(); 
   }
 
   @override
@@ -703,12 +766,14 @@ class _DriverViolationsPageState extends State<DriverViolationsPage> {
                       ? _buildEmptyState()
                       : RefreshIndicator(
                           onRefresh: _refreshViolations,
+                          color: Colors.white,
+                          backgroundColor: MainColor().primary,
                           child: ListView.builder(
                             controller: _scrollController,
                             padding:
                                 const EdgeInsets.symmetric(horizontal: 16),
                             itemCount:
-                                _violations.length + (_hasMoreData ? 1 : 0),
+                                _violations.length + (_isLoading && _hasMoreData ? 1 : 0),
                             itemBuilder: (context, index) {
                               if (index == _violations.length) {
                                 return _buildLoadingIndicator();
@@ -760,7 +825,7 @@ class _DriverViolationsPageState extends State<DriverViolationsPage> {
               icon: const Icon(Icons.refresh),
               label: const Text('Refresh'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: MainColor().primary,
+                backgroundColor: MainColor().primary.withOpacity(0.5),
                 foregroundColor: Colors.white,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -783,6 +848,12 @@ class _DriverViolationsPageState extends State<DriverViolationsPage> {
     String primaryViolation = violation.violations.isNotEmpty
         ? violation.violations.first.violationName
         : 'Traffic Violation';
+        
+    String? formattedDueDate;
+    if (violation.dueDate != null) {
+      final DateFormat cardDateFormat = DateFormat('MMM d, yyyy'); // Simple format
+      formattedDueDate = 'Due: ${cardDateFormat.format(violation.dueDate!)}';
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -831,6 +902,8 @@ class _DriverViolationsPageState extends State<DriverViolationsPage> {
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 4),
                             Text(
@@ -839,28 +912,63 @@ class _DriverViolationsPageState extends State<DriverViolationsPage> {
                                 fontSize: FontSizes().body,
                                 color: Colors.white.withOpacity(0.8),
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 8),
-                            Row(
+
+                            // ✅ FIXED: Replaced Row with Wrap
+                            Wrap(
+                              spacing: 12.0, // Horizontal space
+                              runSpacing: 4.0,  // Vertical space if it wraps
                               children: [
-                                Icon(
-                                  Icons.calendar_today,
-                                  size: 14,
-                                  color: Colors.white.withOpacity(0.6),
+                                // --- Date Created ---
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.calendar_today,
+                                      size: 14,
+                                      color: Colors.white.withOpacity(0.6),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      _formatDateSimple(violation.createdAt), // Use simple format
+                                      style: TextStyle(
+                                        fontSize: FontSizes().caption,
+                                        color: Colors.white.withOpacity(0.6),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  _formatDate(violation.createdAt),
-                                  style: TextStyle(
-                                    fontSize: FontSizes().caption,
-                                    color: Colors.white.withOpacity(0.6),
+                                
+                                // --- Due Date (if exists) ---
+                                if (formattedDueDate != null)
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                       Icon(
+                                          Icons.timer_off_outlined,
+                                          size: 14,
+                                          color: Colors.red.withOpacity(0.8),
+                                       ),
+                                       const SizedBox(width: 4),
+                                       Text(
+                                         formattedDueDate,
+                                         style: TextStyle(
+                                           fontSize: FontSizes().caption,
+                                           color: Colors.red.withOpacity(0.9),
+                                           fontWeight: FontWeight.w600,
+                                         ),
+                                       ),
+                                    ],
                                   ),
-                                ),
                               ],
                             ),
                           ],
                         ),
                       ),
+                      // ✅ FIXED: This Column now contains a constrained Text widget
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
@@ -888,12 +996,21 @@ class _DriverViolationsPageState extends State<DriverViolationsPage> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Text(
-                            violation.trackingNumber ?? 'N/A',
-                            style: TextStyle(
-                              fontSize: FontSizes().caption,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white.withOpacity(0.7),
+                          // ✅ FIXED: Wrapped Text in a Container with constraints
+                          Container(
+                            // This constraint prevents the Text from expanding
+                            // and causing the overflow.
+                            constraints: BoxConstraints(maxWidth: 90), 
+                            child: Text(
+                              violation.trackingNumber ?? 'N/A',
+                              style: TextStyle(
+                                fontSize: FontSizes().caption,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white.withOpacity(0.7),
+                              ),
+                              overflow: TextOverflow.ellipsis, // Truncate with ...
+                              maxLines: 1,
+                              textAlign: TextAlign.end,
                             ),
                           ),
                         ],
@@ -929,8 +1046,30 @@ class _DriverViolationsPageState extends State<DriverViolationsPage> {
     );
   }
 
+  String _formatDateSimple(DateTime? dateTime) {
+    if (dateTime == null) return 'Unknown';
+    // Use a simple format for the card
+    return DateFormat('MMM d, yyyy').format(dateTime); 
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'Paid':
+        return Colors.green;
+      case 'Overturned':
+        return Colors.blue;
+      case 'Submitted':
+        return Colors.purple;
+      case 'Cancelled':
+        return Colors.grey;
+      default: // Includes 'Pending' or any other status
+        return Colors.orange;
+    }
+  }
+
+  // ✅ FIXED: These functions are now inside _DriverViolationsPageState
+  // and match the comprehensive versions from the details sheet.
   Color _getViolationColor(String violationType) {
-    // ... (utility functions remain the same)
     switch (violationType.toLowerCase()) {
       case 'speeding':
         return Colors.red;
@@ -942,55 +1081,73 @@ class _DriverViolationsPageState extends State<DriverViolationsPage> {
         return Colors.purple;
       case 'reckless driving':
         return Colors.deepOrange;
-      case 'no license':
-        return Colors.red;
-      case 'expired registration':
-        return Colors.orange;
+      // More specific cases based on violation names in violation_config.dart
+      case 'driving without valid license':
+      case 'driving under influence':
+         return Colors.red.shade700;
+      case 'driving without carrying license':
+      case 'unregistered vehicle':
+      case 'number coding violation (mmda)':
+        return Colors.orange.shade700;
+      case 'disregarding traffic signs/ red light':
+      case 'illegal parking':
+      case 'obstruction (crossing/driveway)':
+        return Colors.amber.shade700;
+      case 'no seatbelt':
+      case 'using phone while driving':
+        return Colors.blue.shade700;
+      case 'overloading (puvs)':
+      case 'operating without franchise (puvs)':
+      case 'smoke belching / emission':
+         return Colors.grey.shade600;
+      case 'other':
+        return Colors.teal;
       default:
-        return Colors.blue;
+        return Colors.blueGrey; // Fallback color
     }
   }
 
   IconData _getViolationIcon(String violationType) {
-    // ... (utility functions remain the same)
     switch (violationType.toLowerCase()) {
       case 'speeding':
         return Icons.speed;
       case 'parking violation':
+      case 'illegal parking':
         return Icons.local_parking;
       case 'traffic light violation':
+      case 'disregarding traffic signs/ red light':
         return Icons.traffic;
       case 'no helmet':
-        return Icons.sports_motorsports;
+        return Icons.motorcycle; 
       case 'reckless driving':
-        return Icons.warning;
-      case 'no license':
-        return Icons.badge;
-      case 'expired registration':
-        return Icons.assignment_late;
+        return Icons.warning_amber_rounded; 
+      // More specific cases
+      case 'driving without valid license':
+      case 'driving without carrying license':
+        return Icons.no_accounts;
+      case 'unregistered vehicle':
+         return Icons.car_crash_outlined; 
+      case 'number coding violation (mmda)':
+         return Icons.event_busy;
+      case 'no seatbelt':
+         return Icons.airline_seat_recline_normal;
+      case 'driving under influence':
+         return Icons.no_drinks;
+      case 'overloading (puvs)':
+         return Icons.groups;
+      case 'operating without franchise (puvs)':
+         return Icons.gavel; 
+      case 'using phone while driving':
+         return Icons.phone_android;
+      case 'obstruction (crossing/driveway)':
+         return Icons.block;
+      case 'smoke belching / emission':
+         return Icons.smoke_free; 
+      case 'other':
+        return Icons.help_outline;
       default:
-        return Icons.report_problem;
+        return Icons.report_problem; 
     }
   }
 
-  String _formatDate(DateTime? dateTime) {
-    if (dateTime == null) return 'Unknown';
-    return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
-  }
-
-  Color _getStatusColor(String status) {
-    // ... (utility functions remain the same)
-    switch (status) {
-      case 'Paid':
-        return Colors.green;
-      case 'Overturned':
-        return Colors.blue;
-      case 'Submitted':
-        return Colors.purple;
-      case 'Cancelled':
-        return Colors.grey;
-      default:
-        return Colors.orange;
-    }
-  }
-}
+} // End of _DriverViolationsPageState

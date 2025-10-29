@@ -16,6 +16,7 @@ class ReportModel {
   String? createdById;
   List<ViolationModel> violations;
   DateTime? createdAt;
+  DateTime? dueDate; // ✅ ADDED: New field for due date
   String? draftId;
   String? paymentReferenceId;
   String status; // "Overturned" | "Submitted" | "Cancelled" | "Paid"
@@ -34,6 +35,7 @@ class ReportModel {
     required this.violations,
     required this.evidencePhoto,
     this.createdAt,
+    this.dueDate, // ✅ ADDED: To constructor
     this.draftId,
     this.paymentReferenceId,
     this.status = "Submitted",
@@ -62,6 +64,10 @@ class ReportModel {
               ? (json['createdAt'] as Timestamp).toDate()
               : DateTime.parse(json['createdAt'] as String))
           : DateTime(0),
+      // ✅ ADDED: Read dueDate from Firestore
+      dueDate: json['dueDate'] != null
+          ? (json['dueDate'] as Timestamp).toDate()
+          : null,
       status: json['status'] as String? ?? "Submitted",
       paymentStatus: json['paymentStatus'] as String? ?? "Pending",
     );
@@ -87,6 +93,9 @@ class ReportModel {
       'createdAt': createdAt != null
           ? Timestamp.fromDate(createdAt!)
           : Timestamp.fromDate(DateTime.now()),
+      // ✅ ADDED: Save dueDate to Firestore
+      'dueDate':
+          dueDate != null ? Timestamp.fromDate(dueDate!) : null,
       'status': status,
       'paymentStatus': paymentStatus,
     };
@@ -111,6 +120,8 @@ class ReportModel {
       'trackingNumber': trackingNumber ?? createAlphanumericTrackingNumber(), // ✅ fixed
       'createdAt':
           createdAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
+      // ✅ ADDED: Save dueDate to draft
+      'dueDate': dueDate?.toIso8601String(),
       'status': status,
       'paymentStatus': paymentStatus,
     };

@@ -25,6 +25,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart'; // ✅ ADDED: For date formatting
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
@@ -364,8 +365,10 @@ class _ViolationPageState extends State<ViolationPage>
     }
   }
 
-  Future<String?> submitForm(BuildContext context) async {
-    String? trackingNumber;
+  // ✅ CHANGED: Return type is now a Map
+  Future<Map<String, dynamic>?> submitForm(BuildContext context) async {
+    // ✅ CHANGED: Variable type is now a Map
+    Map<String, dynamic>? submissionResult;
     setState(() {
       isSaving = true;
     });
@@ -422,10 +425,13 @@ class _ViolationPageState extends State<ViolationPage>
         evidencePhoto: evidenceUrl,
         violations: ViolationsConfig.fromSelectedViolationsWithData(
             homeBlocState.violations),
+        createdAt: DateTime.now(), // ✅ ADDED: Set creation time here
+        // dueDate will be calculated and set in handleSave
       );
 
       try {
-        trackingNumber = await handleSave(data);
+        // ✅ CHANGED: Assign to the Map variable
+        submissionResult = await handleSave(data);
 
         if (widget.initialData != null &&
             widget.initialData?.draftId != null) {
@@ -454,7 +460,8 @@ class _ViolationPageState extends State<ViolationPage>
     setState(() {
       isSaving = false;
     });
-    return trackingNumber;
+    // ✅ CHANGED: Return the Map
+    return submissionResult;
   }
 
   Future<void> navigateBackToHome() async {
@@ -659,8 +666,17 @@ class _ViolationPageState extends State<ViolationPage>
                     totalSteps: totalSteps,
                     previousStep: previousStep,
                     submitForm: () => submitForm(context).then(
-                      (trackingNumber) {
-                        if (trackingNumber != null) {
+                      // ✅ CHANGED: Parameter is now a Map
+                      (submissionResult) {
+                        // ✅ CHANGED: Check if the Map is not null
+                        if (submissionResult != null) {
+                          // ✅ ADDED: Extract values from the Map
+                          final trackingNumber =
+                              submissionResult['trackingNumber'] as String;
+                          final dueDate = submissionResult['dueDate'] as DateTime;
+                          final formattedDueDate =
+                              DateFormat('MMMM d, y').format(dueDate);
+
                           showCupertinoDialog(
                             context: context,
                             builder: (context) => CupertinoAlertDialog(
@@ -721,6 +737,24 @@ class _ViolationPageState extends State<ViolationPage>
                                         );
                                       },
                                     ),
+                                    // ✅ ADDED: Display the Due Date
+                                    SizedBox(height: 8),
+                                    Text(
+                                      "Payment Due Date",
+                                      style: TextStyle(
+                                        fontSize: FontSizes().caption,
+                                        fontWeight: FontWeight.normal,
+                                      ),
+                                    ),
+                                    Text(
+                                      formattedDueDate,
+                                      style: TextStyle(
+                                        fontSize: FontSizes().h3,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors
+                                            .red, // Make it stand out
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -736,7 +770,7 @@ class _ViolationPageState extends State<ViolationPage>
                             ),
                           );
                         }
-                        // If trackingNumber is null, submitForm already showed an error alert
+                        // If submissionResult is null, submitForm already showed an error alert
                       },
                     ),
                     nextStep: () => nextStep(context),

@@ -8,6 +8,7 @@ import '../../shared/app_theme/colors.dart';
 import '../../shared/app_theme/fonts.dart';
 import '../../shared/decorations/app_bg.dart';
 import '../../pages/violation/models/report_model.dart';
+import '../../utils/fine_calculator.dart';
 
 // New StatefulWidget for the modal content to manage its own state
 class _ViolationDetailsSheet extends StatefulWidget {
@@ -187,6 +188,38 @@ class _ViolationDetailsSheetState extends State<_ViolationDetailsSheet> {
         _buildDetailRow('Phone Number', violation.phoneNumber),
         _buildDetailRow('License Number', violation.licenseNumber),
         _buildDetailRow('Plate Number', violation.plateNumber),
+        
+        // ✅ NEW: Display Age
+        if (violation.age != null && violation.age!.isNotEmpty)
+          _buildDetailRow('Age', violation.age!),
+        
+        // ✅ NEW: Display Birthdate
+        if (violation.birthdate != null)
+          _buildDetailRow(
+            'Birthdate', 
+            readableDateFormat.format(violation.birthdate!),
+          ),
+        
+        // ✅ NEW: Display Place of Violation
+        if (violation.placeOfViolation != null && violation.placeOfViolation!.isNotEmpty)
+          _buildDetailRow('Place of Violation', violation.placeOfViolation!),
+        
+        // ✅ NEW: Display Confiscated Status
+        _buildDetailRow(
+          'License/Vehicle Status',
+          violation.isConfiscated ? 'Confiscated' : 'Non-Confiscated',
+          valueColor: violation.isConfiscated ? Colors.red : Colors.green,
+          isBold: true,
+        ),
+        
+        // ✅ NEW: Display Enforcer Name
+        _buildDetailRow(
+          'Issued by Enforcer', 
+          violation.enforcerName ?? 'Unknown Enforcer',
+          valueColor: MainColor().accent,
+          isBold: true
+        ),
+        
         _buildDetailRow(
           'Date & Time',
           violation.createdAt != null
@@ -204,6 +237,36 @@ class _ViolationDetailsSheetState extends State<_ViolationDetailsSheet> {
           ),
 
         const SizedBox(height: 16),
+        
+        // Overdue Warning
+        if (FineCalculator.isOverdue(violation.dueDate)) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.red),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.warning, color: Colors.red, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    FineCalculator.getPenaltyMessage(violation.dueDate),
+                    style: TextStyle(
+                      fontSize: FontSizes().caption,
+                      color: Colors.white.withOpacity(0.9),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        
         Text(
           'Violations',
           style: TextStyle(
@@ -224,71 +287,144 @@ class _ViolationDetailsSheetState extends State<_ViolationDetailsSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: violation.violations
                 .map(
-                  (v) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.fiber_manual_record,
-                          size: 8,
-                          color: Colors.white.withOpacity(0.6),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                v.violationName,
-                                style: TextStyle(
-                                  fontSize: FontSizes().body,
-                                  color: Colors.white.withOpacity(0.8),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Row(
-                                children: [
-                                  Text(
-                                    'Fine: ₱${v.price.toStringAsFixed(2)}',
-                                    style: TextStyle(
-                                      fontSize: FontSizes().caption,
-                                      color: Colors.white.withOpacity(0.6),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: _getOffenseColor(v.repetition)
-                                          .withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: _getOffenseColor(v.repetition)
-                                            .withOpacity(0.5),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      _getOrdinalNumber(v.repetition),
-                                      style: TextStyle(
-                                        fontSize: FontSizes().caption,
-                                        color: _getOffenseColor(v.repetition)
-                                            .withOpacity(0.9),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                  (v) {
+                    final originalPrice = v.price;
+                    final finalPrice = FineCalculator.calculateFineAmount(
+                      originalPrice,
+                      violation.dueDate,
+                    );
+                    final isPenalized = originalPrice != finalPrice;
+                    
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.fiber_manual_record,
+                            size: 8,
+                            color: Colors.white.withOpacity(0.6),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  v.violationName,
+                                  style: TextStyle(
+                                    fontSize: FontSizes().body,
+                                    color: Colors.white.withOpacity(0.8),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Row(
+                                  children: [
+                                    if (isPenalized) ...[
+                                      Text(
+                                        'Fine: ₱${originalPrice.toStringAsFixed(2)}',
+                                        style: TextStyle(
+                                          fontSize: FontSizes().caption,
+                                          color: Colors.white.withOpacity(0.4),
+                                          decoration: TextDecoration.lineThrough,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '₱${finalPrice.toStringAsFixed(2)}',
+                                        style: TextStyle(
+                                          fontSize: FontSizes().caption,
+                                          color: Colors.red,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '(2x)',
+                                        style: TextStyle(
+                                          fontSize: FontSizes().caption - 2,
+                                          color: Colors.red.withOpacity(0.8),
+                                        ),
+                                      ),
+                                    ] else ...[
+                                      Text(
+                                        'Fine: ₱${finalPrice.toStringAsFixed(2)}',
+                                        style: TextStyle(
+                                          fontSize: FontSizes().caption,
+                                          color: Colors.white.withOpacity(0.6),
+                                        ),
+                                      ),
+                                    ],
+                                    const SizedBox(width: 12),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: _getOffenseColor(v.repetition)
+                                            .withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: _getOffenseColor(v.repetition)
+                                              .withOpacity(0.5),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        _getOrdinalNumber(v.repetition),
+                                        style: TextStyle(
+                                          fontSize: FontSizes().caption,
+                                          color: _getOffenseColor(v.repetition)
+                                              .withOpacity(0.9),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 )
                 .toList(),
+          ),
+        ),
+        
+        // Total Fine Amount
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.2),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Total Fine Amount:',
+                style: TextStyle(
+                  fontSize: FontSizes().body,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              Text(
+                '₱${FineCalculator.calculateTotalFine(violation.violations, violation.dueDate).toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: FontSizes().h4,
+                  fontWeight: FontWeight.bold,
+                  color: FineCalculator.isOverdue(violation.dueDate) 
+                      ? Colors.red 
+                      : Colors.green,
+                ),
+              ),
+            ],
           ),
         ),
       ],

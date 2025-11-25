@@ -20,6 +20,7 @@ import 'package:enforcer_auto_fine/utils/local_file_saver.dart';
 import 'package:enforcer_auto_fine/utils/file_uploader.dart';
 import 'package:enforcer_auto_fine/utils/input_formatters.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // ✅ NEW: Add Firestore import
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -57,6 +58,8 @@ class _ViolationPageState extends State<ViolationPage>
   final _phoneController = TextEditingController();
   final _licenseController = TextEditingController();
   final _plateController = TextEditingController();
+  final _ageController = TextEditingController();
+  final _placeOfViolationController = TextEditingController();
 
   // Form validation keys
   final step1Key = GlobalKey<FormState>();
@@ -72,6 +75,8 @@ class _ViolationPageState extends State<ViolationPage>
   //Local State
   bool isSaving = false;
   bool hasBeenSubmittedSuccessfully = false;
+  DateTime? _selectedBirthdate;
+  bool _isConfiscated = false;
 
   @override
   void initState() {
@@ -91,6 +96,10 @@ class _ViolationPageState extends State<ViolationPage>
       _phoneController.text = widget.initialData?.phoneNumber ?? "";
       _licenseController.text = widget.initialData?.licenseNumber ?? "";
       _plateController.text = widget.initialData?.plateNumber ?? "";
+      _ageController.text = widget.initialData?.age ?? "";
+      _placeOfViolationController.text = widget.initialData?.placeOfViolation ?? "";
+      _selectedBirthdate = widget.initialData?.birthdate;
+      _isConfiscated = widget.initialData?.isConfiscated ?? false;
 
       if (widget.initialData?.licensePhoto != null &&
           widget.initialData!.licensePhoto.isNotEmpty &&
@@ -164,6 +173,9 @@ class _ViolationPageState extends State<ViolationPage>
     _addressController.dispose();
     _phoneController.dispose();
     _licenseController.dispose();
+    _plateController.dispose();
+    _ageController.dispose();
+    _placeOfViolationController.dispose();
     super.dispose();
   }
 
@@ -414,6 +426,13 @@ class _ViolationPageState extends State<ViolationPage>
         evidenceUrl = await CloudinaryService.uploadPhoto(evidencePhoto!);
       }
 
+      // ✅ NEW: Get current enforcer name
+      final currentUser = FirebaseAuth.instance.currentUser;
+      String? enforcerName;
+      if (currentUser != null) {
+        enforcerName = await _getCurrentUserName(currentUser.uid);
+      }
+
       final data = ReportModel(
         fullname: _fullnameController.text.trim(),
         address: _addressController.text.trim(),
@@ -423,10 +442,19 @@ class _ViolationPageState extends State<ViolationPage>
         plateNumber: _plateController.text.trim(),
         platePhoto: plateUrl,
         evidencePhoto: evidenceUrl,
+        enforcerName: enforcerName, // ✅ NEW: Add enforcer name
         violations: ViolationsConfig.fromSelectedViolationsWithData(
             homeBlocState.violations),
         createdAt: DateTime.now(), // ✅ ADDED: Set creation time here
         // dueDate will be calculated and set in handleSave
+        age: _ageController.text.trim().isNotEmpty 
+            ? _ageController.text.trim()
+            : null,
+        birthdate: _selectedBirthdate,
+        placeOfViolation: _placeOfViolationController.text.trim().isNotEmpty
+            ? _placeOfViolationController.text.trim()
+            : null,
+        isConfiscated: _isConfiscated,
       );
 
       try {
@@ -504,6 +532,13 @@ class _ViolationPageState extends State<ViolationPage>
     }
 
     if (homeBlocState is HomeLoaded) {
+      // ✅ NEW: Get current enforcer name for draft
+      final currentUser = FirebaseAuth.instance.currentUser;
+      String? enforcerName;
+      if (currentUser != null) {
+        enforcerName = await _getCurrentUserName(currentUser.uid);
+      }
+
       // Instantiate the ReportModel with the createdAt timestamp
       final report = ReportModel(
         fullname: _fullnameController.text.trim(),
@@ -514,10 +549,19 @@ class _ViolationPageState extends State<ViolationPage>
         plateNumber: _plateController.text.trim(),
         platePhoto: plateUrl,
         evidencePhoto: evidenceUrl,
+        enforcerName: enforcerName, // ✅ NEW: Add enforcer name to draft
         draftId: uuid,
         violations: ViolationsConfig.fromSelectedViolationsWithData(
             homeBlocState.violations),
         createdAt: DateTime.now(), // Add the creation timestamp here
+        age: _ageController.text.trim().isNotEmpty 
+            ? _ageController.text.trim()
+            : null,
+        birthdate: _selectedBirthdate,
+        placeOfViolation: _placeOfViolationController.text.trim().isNotEmpty
+            ? _placeOfViolationController.text.trim()
+            : null,
+        isConfiscated: _isConfiscated,
       );
 
       final hasData = report.fullname.trim().isNotEmpty ||
@@ -615,6 +659,10 @@ class _ViolationPageState extends State<ViolationPage>
       _phoneController.clear();
       _licenseController.clear();
       _plateController.clear(); // Clear plate controller as well
+      _ageController.clear();
+      _placeOfViolationController.clear();
+      _selectedBirthdate = null;
+      _isConfiscated = false;
 
       licensePhoto = null;
       platePhoto = null; // Clear plate photo as well
@@ -844,6 +892,125 @@ class _ViolationPageState extends State<ViolationPage>
               inputFormatters: [
                 PhilippineMobileNumberFormatter(),
               ],
+            ),
+            SizedBox(height: 20),
+
+            // Age Field
+            AppTextField(
+              controller: _ageController,
+              label: 'Age',
+              placeholder: 'Enter age',
+              required: false,
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+              ],
+            ),
+            SizedBox(height: 20),
+
+            // Birthdate Field
+            AppTextFieldLabel(label: "Birthdate", required: false),
+            SizedBox(height: 8),
+            InkWell(
+              onTap: () async {
+                final DateTime? picked = await showDatePicker(
+                  context: context,
+                  initialDate: _selectedBirthdate ?? DateTime(2000),
+                  firstDate: DateTime(1900),
+                  lastDate: DateTime.now(),
+                );
+                if (picked != null && picked != _selectedBirthdate) {
+                  setState(() {
+                    _selectedBirthdate = picked;
+                  });
+                }
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _selectedBirthdate != null
+                          ? DateFormat('MMMM d, yyyy').format(_selectedBirthdate!)
+                          : 'Select birthdate',
+                      style: TextStyle(
+                        color: _selectedBirthdate != null
+                            ? Colors.white
+                            : Colors.white.withOpacity(0.5),
+                        fontSize: FontSizes().body,
+                      ),
+                    ),
+                    Icon(
+                      Icons.calendar_today,
+                      color: Colors.white.withOpacity(0.7),
+                      size: 20,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(height: 20),
+
+            // Place of Violation Field
+            AppTextField(
+              controller: _placeOfViolationController,
+              label: 'Place of Violation',
+              placeholder: 'Enter location where violation occurred',
+              required: false,
+              maxLines: 2,
+            ),
+            SizedBox(height: 20),
+
+            // Confiscated Radio Button
+            AppTextFieldLabel(label: "License/Vehicle Status", required: false),
+            SizedBox(height: 8),
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withOpacity(0.1)),
+              ),
+              child: Column(
+                children: [
+                  RadioListTile<bool>(
+                    title: Text(
+                      'Confiscated',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    value: true,
+                    groupValue: _isConfiscated,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        _isConfiscated = value ?? false;
+                      });
+                    },
+                    activeColor: MainColor().primary,
+                  ),
+                  RadioListTile<bool>(
+                    title: Text(
+                      'Non-Confiscated',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    value: false,
+                    groupValue: _isConfiscated,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        _isConfiscated = value ?? false;
+                      });
+                    },
+                    activeColor: MainColor().primary,
+                  ),
+                ],
+              ),
             ),
             SizedBox(height: 20),
 
@@ -1381,5 +1548,27 @@ class _ViolationPageState extends State<ViolationPage>
         ],
       ),
     );
+  }
+
+  // ✅ NEW: Helper method to get current user's name from Firestore
+  Future<String?> _getCurrentUserName(String userUid) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .where('uuid', isEqualTo: userUid)
+          .limit(1)
+          .get();
+
+      if (userDoc.docs.isNotEmpty) {
+        final userData = userDoc.docs.first.data();
+        final firstName = userData['firstName'] ?? '';
+        final lastName = userData['lastName'] ?? '';
+        return '$firstName $lastName'.trim();
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching user name: $e');
+      return null;
+    }
   }
 }

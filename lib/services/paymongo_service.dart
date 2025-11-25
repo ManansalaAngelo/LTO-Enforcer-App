@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:uuid/uuid.dart';
 
 class PayMongoService {
   static const String _baseUrl = 'https://api.paymongo.com/v1';

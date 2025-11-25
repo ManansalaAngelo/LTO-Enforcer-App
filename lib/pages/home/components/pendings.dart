@@ -72,17 +72,17 @@ class _PendingsState extends State<Pendings> {
                               },
                               leading: Text(
                                 "${draft.key + 1}.",
-                                style: TextStyle(
-                                  fontSize: FontSizes().body,
-                                  fontWeight: FontWeight.w500,
-                                ),
+                              style: TextStyle(
+                                fontSize: FontSizes().body,
+                                fontWeight: FontWeight.w500,
                               ),
-                              title: Text(item.fullname ?? "No Name"),
-                              subtitle: Text(
-                                DateFormat(
-                                  AppDate.format,
-                                ).format(item.createdAt!),
-                              ),
+                            ),
+                            title: Text(item.fullname),
+                            subtitle: Text(
+                              DateFormat(
+                                AppDate.format,
+                              ).format(item.createdAt!),
+                            ),
                               trailing: Icon(Icons.open_in_new_outlined),
                             );
                           }).toList(),

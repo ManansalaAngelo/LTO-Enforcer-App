@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/paymongo_service.dart';
 import '../pages/violation/models/report_model.dart';
+import 'fine_calculator.dart';
 
 class PaymentHandler {
   /// Processing fee percentage (2.5%)
@@ -16,11 +17,16 @@ class PaymentHandler {
     return total;
   }
 
-  /// Calculate subtotal from ReportModel violations
+  /// Calculate subtotal from ReportModel violations with due date penalty
   static double calculateSubtotal(ReportModel report) {
     double subtotal = 0.0;
     for (var violation in report.violations) {
-      subtotal += violation.price;
+      // Apply penalty if overdue
+      double amount = FineCalculator.calculateFineAmount(
+        violation.price,
+        report.dueDate,
+      );
+      subtotal += amount;
     }
     return subtotal;
   }

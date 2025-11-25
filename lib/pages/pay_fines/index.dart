@@ -8,7 +8,9 @@ import '../../shared/app_theme/fonts.dart';
 import '../../shared/decorations/app_bg.dart';
 import '../../shared/components/textfield/app_input_border.dart';
 import '../../utils/payment_handler.dart';
+import '../../utils/fine_calculator.dart';
 import '../violation/models/report_model.dart';
+import 'package:intl/intl.dart';
 
 class PayFinesPage extends StatefulWidget {
   const PayFinesPage({super.key});
@@ -202,9 +204,55 @@ class _PayFinesPageState extends State<PayFinesPage> {
   }
 
   Widget _buildViolationDetails() {
+    final isOverdue = FineCalculator.isOverdue(_foundReport!.dueDate);
+    final penaltyMessage = FineCalculator.getPenaltyMessage(_foundReport!.dueDate);
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Overdue Warning Banner (if applicable)
+        if (isOverdue) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: Colors.red, width: 2),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.warning, color: Colors.red, size: 28),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'OVERDUE PENALTY APPLIED',
+                        style: TextStyle(
+                          fontSize: FontSizes().body,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        penaltyMessage,
+                        style: TextStyle(
+                          fontSize: FontSizes().caption,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        
         // Violation Summary Card
         Container(
           width: double.infinity,
@@ -240,7 +288,39 @@ class _PayFinesPageState extends State<PayFinesPage> {
               _buildDetailRow('Plate Number', _foundReport!.plateNumber),
               _buildDetailRow('Driver Name', _foundReport!.fullname),
               _buildDetailRow('License Number', _foundReport!.licenseNumber),
+              
+              // ✅ NEW: Display Age
+              if (_foundReport!.age != null && _foundReport!.age!.isNotEmpty)
+                _buildDetailRow('Age', _foundReport!.age!),
+              
+              // ✅ NEW: Display Birthdate
+              if (_foundReport!.birthdate != null)
+                _buildDetailRow(
+                  'Birthdate', 
+                  DateFormat('MMMM d, yyyy').format(_foundReport!.birthdate!),
+                ),
+              
+              // ✅ NEW: Display Place of Violation
+              if (_foundReport!.placeOfViolation != null && _foundReport!.placeOfViolation!.isNotEmpty)
+                _buildDetailRow('Place of Violation', _foundReport!.placeOfViolation!),
+              
+              // ✅ NEW: Display Confiscated Status
+              _buildDetailRow(
+                'License/Vehicle Status',
+                _foundReport!.isConfiscated ? 'Confiscated' : 'Non-Confiscated',
+                valueColor: _foundReport!.isConfiscated ? Colors.red : Colors.green,
+              ),
+              
               _buildDetailRow('Status', _foundReport!.status),
+              
+              // Due Date Display
+              if (_foundReport!.dueDate != null) ...[
+                _buildDetailRow(
+                  'Due Date',
+                  DateFormat('MMMM d, yyyy').format(_foundReport!.dueDate!),
+                  valueColor: isOverdue ? Colors.red : Colors.white.withOpacity(0.8),
+                ),
+              ],
 
               SizedBox(height: 12),
               Divider(color: Colors.white.withOpacity(0.3)),
@@ -258,30 +338,80 @@ class _PayFinesPageState extends State<PayFinesPage> {
 
               ..._foundReport!.violations
                   .map(
-                    (violation) => Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              violation.violationName,
-                              style: TextStyle(
-                                fontSize: FontSizes().caption,
-                                color: Colors.white.withOpacity(0.8),
+                    (violation) {
+                      final originalPrice = violation.price;
+                      final finalPrice = FineCalculator.calculateFineAmount(
+                        originalPrice,
+                        _foundReport!.dueDate,
+                      );
+                      final isPenalized = originalPrice != finalPrice;
+                      
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    violation.violationName,
+                                    style: TextStyle(
+                                      fontSize: FontSizes().caption,
+                                      color: Colors.white.withOpacity(0.8),
+                                    ),
+                                  ),
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    if (isPenalized) ...[
+                                      Text(
+                                        PaymentHandler.formatAmount(originalPrice),
+                                        style: TextStyle(
+                                          fontSize: FontSizes().caption - 2,
+                                          color: Colors.white.withOpacity(0.5),
+                                          decoration: TextDecoration.lineThrough,
+                                        ),
+                                      ),
+                                      Text(
+                                        PaymentHandler.formatAmount(finalPrice),
+                                        style: TextStyle(
+                                          fontSize: FontSizes().caption,
+                                          color: Colors.red,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ] else ...[
+                                      Text(
+                                        PaymentHandler.formatAmount(finalPrice),
+                                        style: TextStyle(
+                                          fontSize: FontSizes().caption,
+                                          color: Colors.white.withOpacity(0.8),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
+                            ),
+                            if (isPenalized)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(
+                                  '  ⚠ Doubled due to overdue',
+                                  style: TextStyle(
+                                    fontSize: FontSizes().caption - 3,
+                                    color: Colors.red.withOpacity(0.8),
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                          Text(
-                            PaymentHandler.formatAmount(violation.price),
-                            style: TextStyle(
-                              fontSize: FontSizes().caption,
-                              color: Colors.white.withOpacity(0.8),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                          ],
+                        ),
+                      );
+                    },
                   )
                   .toList(),
 
@@ -456,7 +586,7 @@ class _PayFinesPageState extends State<PayFinesPage> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
+  Widget _buildDetailRow(String label, String value, {Color? valueColor}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
@@ -473,7 +603,7 @@ class _PayFinesPageState extends State<PayFinesPage> {
             value,
             style: TextStyle(
               fontSize: FontSizes().caption,
-              color: Colors.white,
+              color: valueColor ?? Colors.white,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -764,111 +894,112 @@ class _PayFinesPageState extends State<PayFinesPage> {
   //   }
   // }
 
-  /// Update violation status in Firebase
-  Future<void> _updateViolationStatus({
-    required String trackingNumber,
-    required Map<String, dynamic> paymentDetails,
-  }) async {
-    try {
-      // Find and update the violation report
-      final querySnapshot = await _db
-          .collection('reports')
-          .where('trackingNumber', isEqualTo: trackingNumber)
-          .limit(1)
-          .get();
+  // Commented out - kept for future reference
+  // /// Update violation status in Firebase
+  // Future<void> _updateViolationStatus({
+  //   required String trackingNumber,
+  //   required Map<String, dynamic> paymentDetails,
+  // }) async {
+  //   try {
+  //     // Find and update the violation report
+  //     final querySnapshot = await _db
+  //         .collection('reports')
+  //         .where('trackingNumber', isEqualTo: trackingNumber)
+  //         .limit(1)
+  //         .get();
 
-      if (querySnapshot.docs.isNotEmpty) {
-        final docId = querySnapshot.docs.first.id;
+  //     if (querySnapshot.docs.isNotEmpty) {
+  //       final docId = querySnapshot.docs.first.id;
 
-        await _db.collection('reports').doc(docId).update({
-          'status': 'Paid',
-          'paymentStatus': 'Completed',
-          'payment_id': paymentDetails['payment_id'],
-          'external_reference': paymentDetails['external_reference'],
-          'amount_paid': paymentDetails['amount'],
-          'processing_fee': paymentDetails['fee'],
-          'paid_at': FieldValue.serverTimestamp(),
-        });
+  //       await _db.collection('reports').doc(docId).update({
+  //         'status': 'Paid',
+  //         'paymentStatus': 'Completed',
+  //         'payment_id': paymentDetails['payment_id'],
+  //         'external_reference': paymentDetails['external_reference'],
+  //         'amount_paid': paymentDetails['amount'],
+  //         'processing_fee': paymentDetails['fee'],
+  //         'paid_at': FieldValue.serverTimestamp(),
+  //       });
 
-        print('Violation status updated to Paid: $trackingNumber');
-      }
-    } catch (e) {
-      print('Error updating violation status: $e');
-      throw e;
-    }
-  }
+  //       print('Violation status updated to Paid: $trackingNumber');
+  //     }
+  //   } catch (e) {
+  //     print('Error updating violation status: $e');
+  //     throw e;
+  //   }
+  // }
 
-  /// Show payment success dialog
-  void _showPaymentSuccessDialog(Map<String, dynamic> paymentDetails) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.green, size: 28),
-            SizedBox(width: 10),
-            Text('Payment Successful!'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Your violation fine has been paid successfully.'),
-            SizedBox(height: 16),
-            Text(
-              'Transaction Details:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 8),
-            Text('Payment ID: ${paymentDetails['payment_id']}'),
-            if (paymentDetails['external_reference'] != null)
-              Text('GCash Reference: ${paymentDetails['external_reference']}'),
-            Text(
-              'Amount Paid: ${PaymentHandler.formatAmount(paymentDetails['amount'] / 100)}',
-            ),
-            if (paymentDetails['fee'] != null)
-              Text(
-                'Processing Fee: ${PaymentHandler.formatAmount(paymentDetails['fee'] / 100)}',
-              ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pushReplacementNamed(context, '/home');
-            },
-            child: Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
+  // /// Show payment success dialog
+  // void _showPaymentSuccessDialog(Map<String, dynamic> paymentDetails) {
+  //   showDialog(
+  //     context: context,
+  //     barrierDismissible: false,
+  //     builder: (context) => AlertDialog(
+  //       title: Row(
+  //         children: [
+  //           Icon(Icons.check_circle, color: Colors.green, size: 28),
+  //           SizedBox(width: 10),
+  //           Text('Payment Successful!'),
+  //         ],
+  //       ),
+  //       content: Column(
+  //         mainAxisSize: MainAxisSize.min,
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           Text('Your violation fine has been paid successfully.'),
+  //           SizedBox(height: 16),
+  //           Text(
+  //             'Transaction Details:',
+  //             style: TextStyle(fontWeight: FontWeight.bold),
+  //           ),
+  //           SizedBox(height: 8),
+  //           Text('Payment ID: ${paymentDetails['payment_id']}'),
+  //           if (paymentDetails['external_reference'] != null)
+  //             Text('GCash Reference: ${paymentDetails['external_reference']}'),
+  //           Text(
+  //             'Amount Paid: ${PaymentHandler.formatAmount(paymentDetails['amount'] / 100)}',
+  //           ),
+  //           if (paymentDetails['fee'] != null)
+  //             Text(
+  //               'Processing Fee: ${PaymentHandler.formatAmount(paymentDetails['fee'] / 100)}',
+  //             ),
+  //         ],
+  //       ),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () {
+  //             Navigator.pop(context);
+  //             Navigator.pushReplacementNamed(context, '/home');
+  //           },
+  //           child: Text('OK'),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
-  /// Show payment failed dialog
-  void _showPaymentFailedDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.error, color: Colors.red),
-            SizedBox(width: 10),
-            Text('Payment Failed'),
-          ],
-        ),
-        content: Text('Your payment could not be processed. Please try again.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Try Again'),
-          ),
-        ],
-      ),
-    );
-  }
+  // /// Show payment failed dialog
+  // void _showPaymentFailedDialog() {
+  //   showDialog(
+  //     context: context,
+  //     builder: (context) => AlertDialog(
+  //       title: Row(
+  //         children: [
+  //           Icon(Icons.error, color: Colors.red),
+  //           SizedBox(width: 10),
+  //           Text('Payment Failed'),
+  //         ],
+  //       ),
+  //       content: Text('Your payment could not be processed. Please try again.'),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.pop(context),
+  //           child: Text('Try Again'),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   /// Generate a shorter but unique ID using timestamp + random characters
   String _generateShortUniqueId() {

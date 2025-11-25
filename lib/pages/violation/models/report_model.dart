@@ -14,6 +14,7 @@ class ReportModel {
   String evidencePhoto;
   String? trackingNumber;
   String? createdById;
+  String? enforcerName; // ✅ NEW: Add enforcer name field
   List<ViolationModel> violations;
   DateTime? createdAt;
   DateTime? dueDate; // ✅ ADDED: New field for due date
@@ -21,6 +22,11 @@ class ReportModel {
   String? paymentReferenceId;
   String status; // "Overturned" | "Submitted" | "Cancelled" | "Paid"
   String paymentStatus; // "Pending" | "Completed" | "Refunded" | "Cancelled"
+  // New fields
+  String? age;
+  DateTime? birthdate;
+  String? placeOfViolation;
+  bool isConfiscated; // Radio button: confiscated or non-confiscated
 
   ReportModel({
     required this.fullname,
@@ -32,6 +38,7 @@ class ReportModel {
     required this.platePhoto,
     this.trackingNumber,
     this.createdById,
+    this.enforcerName, // ✅ NEW: Add to constructor
     required this.violations,
     required this.evidencePhoto,
     this.createdAt,
@@ -40,25 +47,30 @@ class ReportModel {
     this.paymentReferenceId,
     this.status = "Submitted",
     this.paymentStatus = "Pending",
+    this.age,
+    this.birthdate,
+    this.placeOfViolation,
+    this.isConfiscated = false,
   });
 
   factory ReportModel.fromJson(Map<String, dynamic> json) {
     return ReportModel(
-      fullname: json['fullname'] as String,
-      address: json['address'] as String,
-      phoneNumber: json['phoneNumber'] as String,
-      licenseNumber: json['licenseNumber'] as String,
-      licensePhoto: json['licensePhoto'] as String,
-      plateNumber: json['plateNumber'] as String,
-      platePhoto: json['platePhoto'] as String,
-      evidencePhoto: json['evidencePhoto'] as String,
-      trackingNumber: json['trackingNumber'] as String?,
-      createdById: json['createdById'] as String?,
-      paymentReferenceId: json['paymentReferenceId'] as String?,
+      fullname: json['fullname']?.toString() ?? '',
+      address: json['address']?.toString() ?? '',
+      phoneNumber: json['phoneNumber']?.toString() ?? '',
+      licenseNumber: json['licenseNumber']?.toString() ?? '',
+      licensePhoto: json['licensePhoto']?.toString() ?? '',
+      plateNumber: json['plateNumber']?.toString() ?? '',
+      platePhoto: json['platePhoto']?.toString() ?? '',
+      evidencePhoto: json['evidencePhoto']?.toString() ?? '',
+      trackingNumber: json['trackingNumber']?.toString(),
+      createdById: json['createdById']?.toString(),
+      enforcerName: json['enforcerName']?.toString(), // ✅ NEW: Add to fromJson
+      paymentReferenceId: json['paymentReferenceId']?.toString(),
       violations: (json['violations'] as List)
           .map((v) => ViolationModel.fromJson(v as Map<String, dynamic>))
           .toList(),
-      draftId: json['draftId'] as String?,
+      draftId: json['draftId']?.toString(),
       createdAt: json['createdAt'] != null
           ? (json['createdAt'] is Timestamp
               ? (json['createdAt'] as Timestamp).toDate()
@@ -66,10 +78,24 @@ class ReportModel {
           : DateTime(0),
       // ✅ ADDED: Read dueDate from Firestore
       dueDate: json['dueDate'] != null
-          ? (json['dueDate'] as Timestamp).toDate()
+          ? (json['dueDate'] is Timestamp 
+              ? (json['dueDate'] as Timestamp).toDate()
+              : null)
           : null,
-      status: json['status'] as String? ?? "Submitted",
-      paymentStatus: json['paymentStatus'] as String? ?? "Pending",
+      status: json['status']?.toString() ?? "Submitted",
+      paymentStatus: json['paymentStatus']?.toString() ?? "Pending",
+      age: json['age']?.toString(),
+      birthdate: json['birthdate'] != null
+          ? (json['birthdate'] is Timestamp
+              ? (json['birthdate'] as Timestamp).toDate()
+              : (json['birthdate'] is String 
+                  ? DateTime.tryParse(json['birthdate'] as String)
+                  : null))
+          : null,
+      placeOfViolation: json['placeOfViolation']?.toString(),
+      isConfiscated: json['isConfiscated'] is bool 
+          ? json['isConfiscated'] as bool 
+          : (json['isConfiscated']?.toString().toLowerCase() == 'true' || json['isConfiscated'] == 1),
     );
   }
 
@@ -87,6 +113,7 @@ class ReportModel {
       'platePhoto': platePhoto,
       'violations': violations.map((v) => v.toJson()).toList(),
       'createdById': createdById,
+      'enforcerName': enforcerName, // ✅ NEW: Add to toJson
       'evidencePhoto': evidencePhoto,
       'draftId': draftId,
       'trackingNumber': trackingNumber ?? createAlphanumericTrackingNumber(), // ✅ fixed
@@ -98,6 +125,10 @@ class ReportModel {
           dueDate != null ? Timestamp.fromDate(dueDate!) : null,
       'status': status,
       'paymentStatus': paymentStatus,
+      'age': age,
+      'birthdate': birthdate != null ? Timestamp.fromDate(birthdate!) : null,
+      'placeOfViolation': placeOfViolation,
+      'isConfiscated': isConfiscated,
     };
   }
 
@@ -115,6 +146,7 @@ class ReportModel {
       'platePhoto': platePhoto,
       'violations': violations.map((v) => v.toJson()).toList(),
       'createdById': createdById,
+      'enforcerName': enforcerName, // ✅ NEW: Add to toDraftJson
       'evidencePhoto': evidencePhoto,
       'draftId': draftId,
       'trackingNumber': trackingNumber ?? createAlphanumericTrackingNumber(), // ✅ fixed
@@ -124,6 +156,10 @@ class ReportModel {
       'dueDate': dueDate?.toIso8601String(),
       'status': status,
       'paymentStatus': paymentStatus,
+      'age': age,
+      'birthdate': birthdate?.toIso8601String(),
+      'placeOfViolation': placeOfViolation,
+      'isConfiscated': isConfiscated,
     };
   }
 }

@@ -10,7 +10,6 @@ import 'package:enforcer_auto_fine/shared/app_theme/fonts.dart';
 import 'package:enforcer_auto_fine/shared/components/app_bar/index.dart';
 import 'package:enforcer_auto_fine/shared/components/side_drawer/role_based_drawer.dart';
 import 'package:enforcer_auto_fine/shared/decorations/app_bg.dart';
-import 'package:enforcer_auto_fine/enums/user_roles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_auth/firebase_auth.dart';

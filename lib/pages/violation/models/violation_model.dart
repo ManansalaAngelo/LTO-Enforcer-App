@@ -17,12 +17,20 @@ class ViolationModel {
 
   factory ViolationModel.fromJson(Map<String, dynamic> json) {
     return ViolationModel(
-      violationName: json['violationName'] as String,
-      repetition: json['repetition'] as int,
-      price: (json['price'] as num).toDouble(),
-      selectedOption: json['selectedOption'] as String?,
-      excessPassengers: json['excessPassengers'] as int?,
-      additionalDetails: json['additionalDetails'] as Map<String, dynamic>?,
+      violationName: json['violationName']?.toString() ?? '',
+      repetition: json['repetition'] is int 
+          ? json['repetition'] as int 
+          : int.tryParse(json['repetition']?.toString() ?? '1') ?? 1,
+      price: json['price'] is num 
+          ? (json['price'] as num).toDouble() 
+          : double.tryParse(json['price']?.toString() ?? '0') ?? 0.0,
+      selectedOption: json['selectedOption']?.toString(),
+      excessPassengers: json['excessPassengers'] is int 
+          ? json['excessPassengers'] as int 
+          : int.tryParse(json['excessPassengers']?.toString() ?? '0'),
+      additionalDetails: json['additionalDetails'] is Map<String, dynamic> 
+          ? json['additionalDetails'] as Map<String, dynamic> 
+          : null,
     );
   }
 

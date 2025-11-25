@@ -158,10 +158,15 @@ Future<Map<String, dynamic>?> handleSave(ReportModel data) async {
       evidencePhoto: data.evidencePhoto,
       trackingNumber: trackingNumber,
       createdById: data.createdById,
+      enforcerName: data.enforcerName, // ✅ NEW: Preserve enforcer name
       violations: updatedViolations,
       createdAt: creationTime, // ✅ CHANGED: Use creationTime variable
       dueDate: dueDate, // ✅ ADDED: Pass the calculated due date
       draftId: data.draftId,
+      age: data.age,
+      birthdate: data.birthdate,
+      placeOfViolation: data.placeOfViolation,
+      isConfiscated: data.isConfiscated,
     );
 
     // Save the report to Firestore

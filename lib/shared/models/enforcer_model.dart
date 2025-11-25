@@ -67,7 +67,7 @@ class EnforcerModel extends UserModel {
       profilePictureUrl: json['profilePictureUrl'],
       roles: (json['roles'] as List<dynamic>)
           .map(
-            (role) => UserRoles.values[role] ?? UserRoles.None,
+            (role) => UserRoles.values[role],
           )
           .toList(),
       queryKeys: json['queryKeys'] != null

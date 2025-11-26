@@ -48,6 +48,7 @@ class MyApp extends StatelessWidget {
         BlocProvider<HomeBloc>(create: (context) => HomeBloc()),
       ],
       child: MaterialApp(
+        debugShowCheckedModeBanner: false,
         title: 'Autofine',
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(

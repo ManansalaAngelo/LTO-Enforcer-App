@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'pages/driver_violations/index.dart';
+import 'pages/admin_tools/index.dart';
 
 class AppRoutes {
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
@@ -12,6 +13,10 @@ class AppRoutes {
           );
         }
         break;
+      case '/admin-tools':
+        return MaterialPageRoute(
+          builder: (context) => AdminToolsPage(),
+        );
     }
     return null;
   }

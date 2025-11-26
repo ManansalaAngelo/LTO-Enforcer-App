@@ -24,5 +24,10 @@ class AppMainSideDrawerItem {
       icon: Icon(Icons.add),
       route: '/violations',
     ),
+    AppMainSideDrawerItem(
+      title: "Admin Tools",
+      icon: Icon(Icons.settings),
+      route: '/admin-tools',
+    ),
   ];
 }

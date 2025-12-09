@@ -49,7 +49,9 @@ Future<bool> _checkDuplicateViolation(ReportModel data) async {
 
 /// ✅ Calculate violation repetition counts and update prices accordingly.
 Future<List<ViolationModel>> _calculateViolationRepetitions(
-    String plateNumber, List<ViolationModel> newViolations) async {
+  String plateNumber,
+  List<ViolationModel> newViolations,
+) async {
   try {
     final db = FirebaseFirestore.instance;
     final previousReportsSnapshot = await db
@@ -86,14 +88,16 @@ Future<List<ViolationModel>> _calculateViolationRepetitions(
       }
     }
 
-    final List<ViolationModel> updatedViolations =
-        newViolations.map((violation) {
+    final List<ViolationModel> updatedViolations = newViolations.map((
+      violation,
+    ) {
       final existingCount = violationCounts[violation.violationName] ?? 0;
       return violation.copyWith(repetition: existingCount + 1);
     }).toList();
 
-    final List<ViolationModel> finalViolations =
-        updatedViolations.map((violation) {
+    final List<ViolationModel> finalViolations = updatedViolations.map((
+      violation,
+    ) {
       final violationDef = ViolationsConfig.definitions.values.firstWhere(
         (def) => def.displayName == violation.violationName,
         orElse: () => const ViolationDefinition(
@@ -170,13 +174,16 @@ Future<Map<String, dynamic>?> handleSave(ReportModel data) async {
     );
 
     // Save the report to Firestore
-    final docRef =
-        await db.collection(Collections.reports.name).add(updatedData.toJson());
+    final docRef = await db
+        .collection(Collections.reports.name)
+        .add(updatedData.toJson());
 
     // Make sure the tracking number exists in Firestore (if not, add it)
     await docRef.update({'trackingNumber': trackingNumber});
 
-    print('✅ Report successfully saved to Firestore with tracking number: $trackingNumber');
+    print(
+      '✅ Report successfully saved to Firestore with tracking number: $trackingNumber',
+    );
 
     // Fetch saved document to confirm
     final savedDoc = await docRef.get();
@@ -193,18 +200,33 @@ Future<Map<String, dynamic>?> handleSave(ReportModel data) async {
         'Please check the AutoFine app for details.';
 
     // Optional small delay before sending SMS
-    await Future.delayed(const Duration(seconds: 2));
+    await Future.delayed(const Duration(seconds: 1));
 
-    // Send SMS
-    await TextBeeService.sendSms(updatedData.phoneNumber, smsMessage);
+    // Send SMS with error handling
+    try {
+      print('📱 Preparing to send SMS to: ${updatedData.phoneNumber}');
+      final smsSent = await TextBeeService.sendSms(
+        updatedData.phoneNumber,
+        smsMessage,
+      );
 
-    print('📱 SMS sent successfully with tracking number: $savedTrackingNumber');
+      if (smsSent) {
+        print(
+          '✅ SMS sent successfully with tracking number: $savedTrackingNumber',
+        );
+      } else {
+        print(
+          '⚠️ SMS sending failed but report was saved (tracking: $savedTrackingNumber)',
+        );
+      }
+    } catch (smsError) {
+      print('⚠️ SMS sending error but report was saved: $smsError');
+      // Don't throw - report is already saved, just SMS failed
+      // User will still be able to see violation in the app
+    }
 
     // ✅ CHANGED: Return Map with tracking number and due date
-    return {
-      'trackingNumber': savedTrackingNumber,
-      'dueDate': dueDate,
-    };
+    return {'trackingNumber': savedTrackingNumber, 'dueDate': dueDate};
   } catch (e) {
     print('❌ Error saving report to Firestore or sending SMS: $e');
     rethrow;

@@ -10,14 +10,10 @@ class ReminderService {
     try {
       final db = FirebaseFirestore.instance;
       final now = DateTime.now();
-      
+
       // Calculate the target date (3 days from now)
-      final threeDaysFromNow = DateTime(
-        now.year,
-        now.month,
-        now.day + 3,
-      );
-      
+      final threeDaysFromNow = DateTime(now.year, now.month, now.day + 3);
+
       // Calculate the start and end of the target day
       final startOfDay = DateTime(
         threeDaysFromNow.year,
@@ -36,7 +32,10 @@ class ReminderService {
       // Query violations with due date in 3 days and status not paid
       final querySnapshot = await db
           .collection('reports')
-          .where('dueDate', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .where(
+            'dueDate',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay),
+          )
           .where('dueDate', isLessThanOrEqualTo: Timestamp.fromDate(endOfDay))
           .where('paymentStatus', isEqualTo: 'Pending')
           .get();
@@ -48,23 +47,25 @@ class ReminderService {
         try {
           final data = doc.data();
           final report = ReportModel.fromJson(data);
-          
+
           // Check if reminder was already sent
           final reminderSent = data['reminderSent'] as bool? ?? false;
-          
+
           if (!reminderSent && report.dueDate != null) {
             await _sendReminderSms(report, doc.id);
-            
+
             // Mark reminder as sent in Firestore
             await doc.reference.update({'reminderSent': true});
-            
-            print('Reminder sent for tracking number: ${report.trackingNumber}');
+
+            print(
+              'Reminder sent for tracking number: ${report.trackingNumber}',
+            );
           }
         } catch (e) {
           print('Error processing reminder for doc ${doc.id}: $e');
         }
       }
-      
+
       print('Reminder check completed');
     } catch (e) {
       print('Error in checkAndSendReminders: $e');
@@ -80,14 +81,15 @@ class ReminderService {
 
     final formattedDueDate = DateFormat('MMMM d, yyyy').format(report.dueDate!);
     final trackingNum = report.trackingNumber ?? 'N/A';
-    
+
     // Calculate total fine amount
     double totalFine = 0.0;
     for (var violation in report.violations) {
       totalFine += violation.price;
     }
 
-    final message = '''
+    final message =
+        '''
 AutoFine Reminder
 
 Hi ${report.fullname},
@@ -105,14 +107,20 @@ Please settle your payment before the deadline to avoid penalties.
 Thank you.
 ''';
 
-    await TextBeeService.sendSms(report.phoneNumber, message);
+    final smsSent = await TextBeeService.sendSms(report.phoneNumber, message);
+
+    if (smsSent) {
+      print('✅ Reminder SMS sent successfully to ${report.phoneNumber}');
+    } else {
+      print('⚠️ Failed to send reminder SMS to ${report.phoneNumber}');
+    }
   }
 
   /// Manual trigger to send a single reminder (for testing)
   static Future<void> sendSingleReminder(String trackingNumber) async {
     try {
       final db = FirebaseFirestore.instance;
-      
+
       final querySnapshot = await db
           .collection('reports')
           .where('trackingNumber', isEqualTo: trackingNumber)
@@ -126,10 +134,10 @@ Thank you.
 
       final doc = querySnapshot.docs.first;
       final report = ReportModel.fromJson(doc.data());
-      
+
       await _sendReminderSms(report, doc.id);
       await doc.reference.update({'reminderSent': true});
-      
+
       print('Manual reminder sent successfully');
     } catch (e) {
       print('Error sending manual reminder: $e');
